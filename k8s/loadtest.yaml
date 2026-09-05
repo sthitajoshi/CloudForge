@@ -1,0 +1,44 @@
+# Reproduces the autoscaling demo. Each pod runs 50 concurrent request
+# loops; four pods is enough to push a namespace past its HPA threshold.
+#
+#   kubectl apply -f k8s/loadtest.yaml
+#   kubectl get hpa -n staging -w
+#   kubectl delete -f k8s/loadtest.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  namespace: staging
+  labels:
+    app: loadgen
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: loadgen
+  template:
+    metadata:
+      labels:
+        app: loadgen
+    spec:
+      containers:
+        - name: loadgen
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              i=0
+              while [ $i -lt 50 ]; do
+                (while true; do
+                  wget -q -O /dev/null http://staging-cloudforge-app/items || true
+                done) &
+                i=$((i + 1))
+              done
+              wait
+          resources:
+            requests:
+              cpu: 50m
+              memory: 16Mi
+            limits:
+              cpu: 500m
+              memory: 64Mi

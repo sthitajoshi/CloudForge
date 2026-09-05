@@ -1,0 +1,24 @@
+# HPA autoscaling under load — staging
+
+## HPA state
+NAME                     REFERENCE                           TARGETS        MINPODS   MAXPODS   REPLICAS   AGE
+staging-cloudforge-app   Deployment/staging-cloudforge-app   cpu: 67%/60%   2         5         5          35m
+
+## Pods
+NAME                                      READY   STATUS    RESTARTS   AGE
+staging-cloudforge-app-6c5fd5db9f-5kbvw   1/1     Running   0          35m
+staging-cloudforge-app-6c5fd5db9f-8rwff   1/1     Running   0          3m44s
+staging-cloudforge-app-6c5fd5db9f-p2xjz   1/1     Running   0          3m44s
+staging-cloudforge-app-6c5fd5db9f-tqcp4   1/1     Running   0          3m44s
+staging-cloudforge-app-6c5fd5db9f-vr42j   1/1     Running   0          35m
+
+## Scaling events
+Events:
+  Type     Reason                        Age                From                       Message
+  ----     ------                        ----               ----                       -------
+  Normal   SuccessfulRescale             35m                horizontal-pod-autoscaler  New size: 2; reason: Current number of replicas below Spec.MinReplicas
+  Warning  FailedGetResourceMetric       34m                horizontal-pod-autoscaler  failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+  Warning  FailedComputeMetricsReplicas  34m                horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+  Warning  FailedGetResourceMetric       34m (x2 over 34m)  horizontal-pod-autoscaler  failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server is currently unable to handle the request (get pods.metrics.k8s.io)
+  Warning  FailedComputeMetricsReplicas  34m (x2 over 34m)  horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server is currently unable to handle the request (get pods.metrics.k8s.io)
+  Normal   SuccessfulRescale             3m45s              horizontal-pod-autoscaler  New size: 5; reason: cpu resource utilization (percentage of request) above target
