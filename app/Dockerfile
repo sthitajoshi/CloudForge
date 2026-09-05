@@ -1,5 +1,5 @@
 # Multi-stage build: compile in a full Go image, ship only the static binary.
-FROM golang:1.22-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY go.mod ./
 COPY main.go ./

@@ -14,44 +14,66 @@ jobs:
   apply:
     runs-on: ubuntu-latest
 
-    # LocalStack runs alongside the job, so this is a genuine end-to-end
-    # apply rather than a dry run -- the same HCL, against the same AWS
-    # APIs, just an ephemeral target. Pointing this at a real account means
-    # deleting this service block and swapping the provider credentials for
-    # an OIDC role; nothing in terraform/ changes.
-    services:
-      localstack:
-        image: localstack/localstack:latest
-        ports:
-          - 4566:4566
-        env:
-          SERVICES: s3,dynamodb,iam,ec2,sts
-        options: >-
-          --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.9.8"
+          terraform_version: "1.15.8"
+
+      # LocalStack runs as a normal container rather than a job `services:`
+      # block. Service containers start before the workflow can configure
+      # them and cannot be given the Docker socket, which LocalStack needs;
+      # starting it here also makes its logs readable when something fails.
+      - name: Start LocalStack
+        run: |
+          docker run -d --name localstack \
+            -p 4566:4566 \
+            -e SERVICES=s3,dynamodb,iam,ec2,sts \
+            -e DEBUG=1 \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            localstack/localstack:latest
+
+      - name: Wait for LocalStack to be ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4566/_localstack/health | grep -q '"s3"'; then
+              echo "LocalStack ready after ${i} attempts"
+              curl -s http://localhost:4566/_localstack/health
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::LocalStack did not become ready in time"
+          docker logs localstack --tail 50
+          exit 1
 
       # The state backend cannot store its own state, so it is created
       # first with local state.
       - name: Bootstrap the state backend
         run: |
-          terraform -chdir=terraform/bootstrap init
-          terraform -chdir=terraform/bootstrap apply -auto-approve
+          terraform -chdir=terraform/bootstrap init -input=false
+          terraform -chdir=terraform/bootstrap apply -auto-approve -input=false
 
       - name: Apply every environment
         run: |
           for env in dev staging prod; do
             echo "::group::apply $env"
-            terraform -chdir=terraform/envs/$env init
+            terraform -chdir=terraform/envs/$env init -input=false
             terraform -chdir=terraform/envs/$env apply \
-              -auto-approve -var-file=$env.tfvars
+              -auto-approve -input=false -var-file=$env.tfvars
             echo "::endgroup::"
           done
+
+      # This target is ephemeral -- it disappears with the runner. The point
+      # is proving the pipeline applies cleanly from nothing, which is the
+      # same guarantee the local rebuild test gives.
+      - name: Show what was created
+        run: |
+          docker exec localstack awslocal s3 ls
+          docker exec localstack awslocal iam list-roles \
+            --query 'Roles[].RoleName' --output text
+
+      - name: LocalStack logs on failure
+        if: failure()
+        run: docker logs localstack --tail 100
