@@ -1,0 +1,12 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cloudforge
+# The default kind CNI accepts NetworkPolicy objects and enforces none of
+# them, so a policy looks applied while traffic flows freely. Calico is
+# installed instead — podSubnet must match what its manifest expects.
+networking:
+  disableDefaultCNI: true
+  podSubnet: "192.168.0.0/16"
+nodes:
+  - role: control-plane
+  - role: worker
