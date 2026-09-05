@@ -1,0 +1,29 @@
+# Policy gate for every Terraform change. Runs in CI on pull requests and
+# fails the job on any violation.
+#
+# The built-in checks below cover the classic misconfigurations; the two
+# custom checks in custom_checks/ cover the rules specific to this platform.
+
+framework:
+  - terraform
+
+directory:
+  - terraform
+
+external-checks-dir:
+  - terraform/policy/custom_checks
+
+# Fail on anything not explicitly skipped.
+soft-fail: false
+
+skip-check:
+  # The state bucket is deliberately not encrypted with a customer-managed
+  # KMS key: LocalStack does not emulate KMS in this configuration, and the
+  # real-AWS path would set this. Documented rather than silently ignored.
+  - CKV_AWS_145
+  # Access logging on the state bucket would require a second bucket that
+  # exists only to log writes to the first. Out of scope for this project.
+  - CKV_AWS_18
+  # Cross-region replication of state is a real-AWS concern with no
+  # meaning against a single local emulator.
+  - CKV_AWS_144

@@ -84,3 +84,33 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
 }
+
+# App tier: reachable only from inside the VPC. Nothing from 0.0.0.0/0 —
+# public traffic is expected to arrive via a load balancer in front, which
+# is what the real-AWS path would add.
+resource "aws_security_group" "app" {
+  name        = "${var.env}-app-sg"
+  description = "App tier for ${var.env}"
+  vpc_id      = aws_vpc.this.id
+
+  ingress {
+    description = "App port, VPC-internal only"
+    from_port   = var.app_port
+    to_port     = var.app_port
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    description = "Outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.env}-app-sg"
+    Environment = var.env
+  }
+}

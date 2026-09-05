@@ -8,13 +8,10 @@ terraform {
 
   backend "s3" {
     bucket         = "cloudforge-tf-state"
-    key            = "dev/terraform.tfstate"
+    key            = "staging/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "cloudforge-tf-lock"
 
-    # LocalStack backend config — see terraform/envs/dev/backend.hcl note.
-    # Required because LocalStack isn't real AWS: skip validation/creds
-    # checks and point every call at the local endpoint.
     endpoints = {
       s3       = "http://localhost:4566"
       dynamodb = "http://localhost:4566"
@@ -24,7 +21,7 @@ terraform {
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_requesting_account_id  = true
-    use_path_style               = true
+    use_path_style              = true
   }
 }
 
@@ -63,9 +60,6 @@ resource "aws_s3_bucket" "app" {
   }
 }
 
-# Both of these exist to satisfy the policy gate, not as an afterthought:
-# public access is blocked at the bucket level, and objects are encrypted
-# at rest. A PR removing either one fails CI.
 resource "aws_s3_bucket_public_access_block" "app" {
   bucket                  = aws_s3_bucket.app.id
   block_public_acls       = true

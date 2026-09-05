@@ -1,7 +1,7 @@
 variable "env" {
   description = "Environment name"
   type        = string
-  default     = "dev"
+  default     = "staging"
 }
 
 variable "vpc_cidr" {
