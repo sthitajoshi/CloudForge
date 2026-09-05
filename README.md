@@ -54,6 +54,8 @@ flowchart TB
 
 **How it flows:** a developer opens a PR changing Terraform → CI runs `plan` → a policy-as-code check fails the PR if the plan violates a rule (public bucket, wildcard IAM, missing tags) → Infracost posts the estimated monthly cost delta as a PR comment → on merge, `apply` runs against LocalStack, provisioning the VPC/IAM/state resources for that environment. Separately, the sample service is built, tested, scanned, and pushed to GHCR by its own CI pipeline, then deployed onto a local `kind` cluster — ArgoCD watches the `k8s/` manifests in Git and pulls changes into the cluster itself (GitOps: the cluster pulls, nothing pushes into it).
 
+Full reasoning behind every choice below — including the ones forced by a constraint and the ones found the hard way — is in [`docs/design-decisions.md`](docs/design-decisions.md).
+
 ## Tech Stack
 
 | Layer | Tool | Role |
@@ -142,7 +144,9 @@ cloudforge/
 ├── argocd/
 │   ├── root-app.yaml     (App-of-Apps root)
 │   └── apps/             (one Application per environment)
-├── docs/                 (design notes and evidence)
+├── docs/
+│   ├── design-decisions.md  (why it is built this way)
+│   └── evidence/            (captured proof: autoscaling, etc.)
 ├── .github/
 │   └── workflows/
 │       ├── terraform-plan.yml   (plan + policy + cost, on PR)
