@@ -1,0 +1,20 @@
+metadata:
+  name: "Node groups must use an approved instance type"
+  id: "CKV2_CLOUDFORGE_2"
+  category: "GENERAL_SECURITY"
+  guideline: >
+    Blocks the oversized-instance mistake that only shows up on the bill
+    weeks later. Pairs with the Infracost comment: this stops the change,
+    the comment explains what it would have cost. Widening the list is a
+    deliberate, reviewable edit to this file.
+definition:
+  cond_type: attribute
+  resource_types:
+    - aws_eks_node_group
+  attribute: "instance_types.0"
+  operator: within
+  value:
+    - "t3.small"
+    - "t3.medium"
+    - "t3.large"
+    - "t3a.medium"

@@ -51,35 +51,14 @@ module "vpc" {
   private_subnet_cidrs = var.private_subnet_cidrs
 }
 
-resource "aws_s3_bucket" "app" {
-  bucket = "cloudforge-${var.env}-app"
-
-  tags = {
-    Name        = "cloudforge-${var.env}-app"
-    Environment = var.env
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "app" {
-  bucket                  = aws_s3_bucket.app.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "app" {
-  bucket = aws_s3_bucket.app.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
+module "app_bucket" {
+  source      = "../../modules/app_bucket"
+  env         = var.env
+  bucket_name = "cloudforge-${var.env}-app"
 }
 
 module "iam" {
   source          = "../../modules/iam"
   env             = var.env
-  app_bucket_name = aws_s3_bucket.app.bucket
+  app_bucket_name = module.app_bucket.bucket_name
 }

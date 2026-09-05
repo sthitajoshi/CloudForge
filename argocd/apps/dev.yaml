@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudforge-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sthitajoshi/cloudforge.git
+    targetRevision: main
+    path: k8s/base
+    helm:
+      valueFiles:
+        - ../overlays/dev/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dev
+  syncPolicy:
+    automated:
+      # prune removes objects deleted from Git; selfHeal reverts anything
+      # changed directly in the cluster. Together they make Git the only
+      # way to change what runs.
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

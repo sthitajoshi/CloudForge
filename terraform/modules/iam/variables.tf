@@ -15,6 +15,12 @@ variable "trusted_account_id" {
   default     = "000000000000"
 }
 
+variable "ci_principal_role_name" {
+  description = "Name of the role allowed to assume the CI role. On real AWS this is replaced by a GitHub OIDC federated principal."
+  type        = string
+  default     = "cloudforge-ci-runner"
+}
+
 variable "app_bucket_name" {
   description = "Bucket the app role may read from"
   type        = string

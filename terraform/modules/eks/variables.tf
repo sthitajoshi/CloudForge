@@ -8,6 +8,12 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
+variable "account_id" {
+  description = "AWS account ID, used in the KMS key policy"
+  type        = string
+  default     = "000000000000"
+}
+
 variable "kubernetes_version" {
   description = "EKS control plane version"
   type        = string

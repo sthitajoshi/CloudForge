@@ -101,16 +101,47 @@ resource "aws_security_group" "app" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  # Egress is enumerated rather than left wide open. An unrestricted egress
+  # rule is what lets a compromised container reach an arbitrary host, and
+  # it is the default almost everywhere.
   egress {
-    description = "Outbound"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS to the internet"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "DNS over UDP, VPC resolver"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    description = "DNS over TCP, VPC resolver"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {
     Name        = "${var.env}-app-sg"
+    Environment = var.env
+  }
+}
+
+# Every VPC ships with a default security group that allows all traffic
+# between anything assigned to it. Nothing here uses it, so it is emptied
+# rather than left as a way to accidentally bypass the rules above.
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name        = "${var.env}-default-sg-locked"
     Environment = var.env
   }
 }

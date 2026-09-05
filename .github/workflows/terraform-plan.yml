@@ -1,0 +1,136 @@
+name: terraform-plan
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "policy/**"
+      - ".github/workflows/terraform-plan.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Formatting and validity, per environment. Fast, and catches the
+  # majority of mistakes before the slower jobs run.
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, staging, prod]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive terraform/
+
+      # No LocalStack here, so state stays local and every resource plans
+      # as "to create". That is exactly what the policy and cost jobs need.
+      - name: Init
+        run: terraform -chdir=terraform/envs/${{ matrix.env }} init -backend=false
+
+      - name: Validate
+        run: terraform -chdir=terraform/envs/${{ matrix.env }} validate
+
+      - name: Plan
+        run: |
+          terraform -chdir=terraform/envs/${{ matrix.env }} plan \
+            -var-file=${{ matrix.env }}.tfvars \
+            -out=tfplan -no-color | tee plan.txt
+
+      - name: Post plan as a PR comment
+        uses: actions/github-script@v7
+        env:
+          ENVIRONMENT: ${{ matrix.env }}
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('plan.txt', 'utf8');
+            const body = [
+              `### Terraform plan — \`${process.env.ENVIRONMENT}\``,
+              '```terraform',
+              plan.length > 60000 ? plan.slice(0, 60000) + '\n... truncated' : plan,
+              '```'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+  # The gate. A violation here fails the pull request.
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform/
+          config_file: policy/.checkov.yaml
+          external_checks_dirs: policy/custom_checks
+          quiet: true
+          soft_fail: false
+
+  # A gate nobody tests is a gate that can silently stop gating. This runs
+  # the same policies against deliberately broken configuration and fails
+  # the build if they come back clean.
+  policy-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install checkov
+
+      - name: The gate must reject known-bad configuration
+        run: |
+          if checkov -d policy/tests \
+               --external-checks-dir policy/custom_checks \
+               --compact --quiet; then
+            echo "::error::Policy gate passed configuration it should have rejected."
+            exit 1
+          fi
+          echo "Gate correctly rejected the known-bad examples."
+
+  cost:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Baseline cost from the target branch
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
+          git checkout origin/${{ github.event.pull_request.base.ref }}
+          infracost breakdown --path=terraform/envs \
+            --format=json --out-file=/tmp/base.json
+          git checkout -
+
+      - name: Cost of this pull request
+        run: |
+          infracost diff --path=terraform/envs \
+            --compare-to=/tmp/base.json \
+            --format=json --out-file=/tmp/diff.json
+
+      - name: Comment the difference
+        run: |
+          infracost comment github --path=/tmp/diff.json \
+            --repo=$GITHUB_REPOSITORY \
+            --github-token=${{ secrets.GITHUB_TOKEN }} \
+            --pull-request=${{ github.event.pull_request.number }} \
+            --behavior=update

@@ -1,0 +1,52 @@
+# Policy gate for every Terraform change. Runs in CI on pull requests and
+# fails the job on any violation.
+#
+# The built-in checks cover the classic misconfigurations; the two custom
+# checks in custom_checks/ cover rules specific to this platform.
+#
+# Every skip below carries a reason. A skip list without reasons is how a
+# policy gate quietly stops meaning anything.
+
+framework:
+  - terraform
+
+directory:
+  - terraform
+
+external-checks-dir:
+  - policy/custom_checks
+
+# Anything not explicitly skipped fails the build.
+soft-fail: false
+
+skip-check:
+  # --- Deliberate cost decisions, consistent with the $0 budget ---
+
+  # CKV2_AWS_11: VPC flow logs bill per GB ingested, continuously, with no
+  # free tier -- the same reason this project has no NAT gateway. On real
+  # AWS this would be enabled and shipped to S3 with a lifecycle rule.
+  - CKV2_AWS_11
+
+  # CKV_AWS_119 / CKV_AWS_145 / CKV_AWS_144: customer-managed KMS keys bill
+  # monthly per key, and LocalStack does not emulate KMS in this
+  # configuration. AES256 (SSE-S3) is used instead, which is free.
+  - CKV_AWS_119
+  - CKV_AWS_145
+  - CKV_AWS_144
+
+  # --- Not applicable to this architecture ---
+
+  # CKV2_AWS_5: the app security group is intentionally unattached. The
+  # workload runs on kind locally, so there is no EC2 instance or ENI to
+  # attach it to. It attaches to the node group on the real-AWS path.
+  - CKV2_AWS_5
+
+  # CKV2_AWS_62: S3 event notifications require a consumer -- a queue,
+  # topic or function. None of these buckets have one, so enabling
+  # notifications would create an event stream nothing reads.
+  - CKV2_AWS_62
+
+  # CKV_AWS_18: access logging writes to a second bucket that exists only
+  # to log writes to the first, which then needs its own lifecycle policy.
+  # Out of scope; the audit trail here is git history plus CI logs.
+  - CKV_AWS_18

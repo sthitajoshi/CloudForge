@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudforge-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sthitajoshi/cloudforge.git
+    targetRevision: main
+    path: k8s/base
+    helm:
+      valueFiles:
+        - ../overlays/prod/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prod
+  syncPolicy:
+    automated:
+      prune: true
+      # Production keeps automated sync but the same self-heal guarantee:
+      # a manual kubectl edit here is reverted, not silently kept.
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

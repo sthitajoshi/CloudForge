@@ -69,9 +69,12 @@ resource "aws_iam_role" "ci" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect    = "Allow"
-      Action    = "sts:AssumeRole"
-      Principal = { AWS = "arn:aws:iam::${var.trusted_account_id}:root" }
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
+      # A specific role, not the account root. Trusting ":root" delegates
+      # the decision to the account's own IAM, which means any principal
+      # that can call AssumeRole gets in.
+      Principal = { AWS = "arn:aws:iam::${var.trusted_account_id}:role/${var.ci_principal_role_name}" }
     }]
   })
 

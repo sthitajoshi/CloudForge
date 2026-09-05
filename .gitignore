@@ -5,3 +5,5 @@
 localstack-data/
 *.tfvars.local
 .env
+__pycache__/
+*.pyc

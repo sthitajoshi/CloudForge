@@ -64,6 +64,67 @@ resource "aws_iam_role_policy_attachment" "node_ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+# Kubernetes Secrets are only base64-encoded in etcd by default. This key
+# encrypts them at rest, so reading the etcd volume is not enough to read
+# every credential in the cluster.
+resource "aws_kms_key" "secrets" {
+  description             = "Envelope encryption for ${var.env} EKS secrets"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
+
+  # Without an explicit policy a KMS key falls back to a default that is
+  # broader than it looks. Resource is "*" in every key policy -- it means
+  # "this key" and cannot name anything else -- so the scoping has to come
+  # from the actions and principals instead.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "KeyAdministration"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }
+        Action = [
+          "kms:Create*",
+          "kms:Describe*",
+          "kms:Enable*",
+          "kms:List*",
+          "kms:Put*",
+          "kms:Update*",
+          "kms:Revoke*",
+          "kms:Disable*",
+          "kms:Get*",
+          "kms:Delete*",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid       = "AllowEKSEnvelopeEncryption"
+        Effect    = "Allow"
+        Principal = { Service = "eks.amazonaws.com" }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:GenerateDataKey",
+        ]
+        Resource = "*"
+      },
+    ]
+  })
+
+  tags = {
+    Name        = "${var.env}-eks-secrets"
+    Environment = var.env
+  }
+}
+
+resource "aws_kms_alias" "secrets" {
+  name          = "alias/${var.env}-eks-secrets"
+  target_key_id = aws_kms_key.secrets.key_id
+}
+
 resource "aws_eks_cluster" "this" {
   name     = "${var.env}-cloudforge"
   role_arn = aws_iam_role.cluster.arn
@@ -75,9 +136,22 @@ resource "aws_eks_cluster" "this" {
     endpoint_public_access  = false
   }
 
-  # Audit logging on by default — turning it off is the kind of thing a
+  encryption_config {
+    provider {
+      key_arn = aws_kms_key.secrets.arn
+    }
+    resources = ["secrets"]
+  }
+
+  # All five log types. Turning any of them off is the kind of thing a
   # policy check should catch, not something a reviewer has to notice.
-  enabled_cluster_log_types = ["api", "audit", "authenticator"]
+  enabled_cluster_log_types = [
+    "api",
+    "audit",
+    "authenticator",
+    "controllerManager",
+    "scheduler",
+  ]
 
   tags = {
     Name        = "${var.env}-cloudforge"

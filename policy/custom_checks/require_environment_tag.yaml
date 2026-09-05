@@ -1,0 +1,20 @@
+metadata:
+  name: "Taggable resources must carry an Environment tag"
+  id: "CKV2_CLOUDFORGE_1"
+  category: "CONVENTION"
+  guideline: >
+    Untagged resources are why cost reports and incident triage stall:
+    nobody can tell which environment an orphaned resource belongs to.
+    A reviewer will miss a missing tag in a 300-line plan; this will not.
+definition:
+  cond_type: attribute
+  resource_types:
+    - aws_s3_bucket
+    - aws_vpc
+    - aws_subnet
+    - aws_security_group
+    - aws_iam_role
+    - aws_eks_cluster
+    - aws_eks_node_group
+  attribute: "tags.Environment"
+  operator: exists
