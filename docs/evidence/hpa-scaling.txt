@@ -22,3 +22,16 @@ Events:
   Warning  FailedGetResourceMetric       34m (x2 over 34m)  horizontal-pod-autoscaler  failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server is currently unable to handle the request (get pods.metrics.k8s.io)
   Warning  FailedComputeMetricsReplicas  34m (x2 over 34m)  horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server is currently unable to handle the request (get pods.metrics.k8s.io)
   Normal   SuccessfulRescale             3m45s              horizontal-pod-autoscaler  New size: 5; reason: cpu resource utilization (percentage of request) above target
+
+## Scale-down after load removed
+
+    t+30s   cpu: 67%/60%   pods=5
+    t+60s   cpu: 56%/60%   pods=5
+    t+90s   cpu:  1%/60%   pods=5
+    t+120s  cpu:  1%/60%   pods=5
+    t+150s  cpu:  1%/60%   pods=5
+    t+180s  cpu:  1%/60%   pods=2   <- scaled back to minReplicas
+
+The 60s gap between CPU dropping (t+90s) and the scale-down (t+180s) is
+the scaleDown stabilizationWindowSeconds: 120 set in the chart. Without
+it the replica count oscillates as soon as load becomes bursty.
