@@ -6,5 +6,12 @@ services:
     environment:
       - SERVICES=s3,dynamodb,iam,ec2,sts
       - DEBUG=1
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
     volumes:
       - "./localstack-data:/var/lib/localstack"
+
+  app:
+    build:
+      context: ./app
+    ports:
+      - "8080:8080"
