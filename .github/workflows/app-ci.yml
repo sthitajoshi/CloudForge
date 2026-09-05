@@ -9,10 +9,10 @@ on:
     branches: [main]
     paths:
       - "app/**"
+      - ".github/workflows/app-ci.yml"
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-test-scan-push:
@@ -33,7 +33,11 @@ jobs:
 
       - name: Set image tag
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          # Container registries reject uppercase in repository names, and
+          # github.repository preserves the owner/repo casing verbatim.
+          echo "image=${REGISTRY}/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Build image
         run: |
@@ -58,8 +62,9 @@ jobs:
       - name: Tag and push image
         if: github.event_name == 'push'
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          docker tag local/app:${{ steps.vars.outputs.sha_short }} $IMAGE:${{ steps.vars.outputs.sha_short }}
-          docker tag local/app:${{ steps.vars.outputs.sha_short }} $IMAGE:latest
-          docker push $IMAGE:${{ steps.vars.outputs.sha_short }}
+          IMAGE="${{ steps.vars.outputs.image }}"
+          SHA="${{ steps.vars.outputs.sha_short }}"
+          docker tag local/app:$SHA $IMAGE:$SHA
+          docker tag local/app:$SHA $IMAGE:latest
+          docker push $IMAGE:$SHA
           docker push $IMAGE:latest

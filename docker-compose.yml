@@ -1,6 +1,9 @@
 services:
   localstack:
-    image: localstack/localstack
+    # Pinned: from the 2026 releases onward LocalStack refuses to start
+    # without an auth token. 4.9 is the newest tag that runs unlicensed, so
+    # this project needs no credentials of any kind to stand up.
+    image: localstack/localstack:4.9
     ports:
       - "4566:4566"
     environment:

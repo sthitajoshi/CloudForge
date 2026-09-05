@@ -1,0 +1,25 @@
+# Rebuild from scratch
+
+LocalStack was destroyed and recreated on a pinned 4.9 image with no
+auth token. Nothing was restored -- every resource below was recreated
+by Terraform from the committed configuration alone.
+
+    edition: community
+    version: 4.9.2
+
+## Apply results
+
+    bootstrap          state bucket + lock table
+    dev                25 added, 0 changed, 0 destroyed
+    staging            25 added, 0 changed, 0 destroyed
+    prod               25 added, 0 changed, 0 destroyed
+
+## Verified in LocalStack afterwards
+
+    buckets            cloudforge-{dev,staging,prod}-app + cloudforge-tf-state
+    state files        dev/ staging/ prod/ terraform.tfstate (isolated keys)
+    VPC CIDRs          10.0.0.0/16  10.1.0.0/16  10.2.0.0/16
+    IAM roles          {dev,staging,prod}-{app,ci}-role
+
+This is the test that separates real infrastructure-as-code from
+click-ops with Terraform bolted on afterwards.

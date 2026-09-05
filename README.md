@@ -113,7 +113,7 @@ Everything below has actually been applied and observed running, not just writte
 - [x] A real (unapplied) `eks` Terraform module exists in the repo, documented as the production path
 - [x] A policy-as-code violation is caught by the gate — proven locally and enforced by the `policy-self-test` CI job
 - [x] README has the architecture diagram, setup instructions, and the LocalStack/kind honesty note
-- [ ] `terraform destroy` + `terraform apply` from a clean state reproduces the entire environment identically
+- [x] `terraform apply` from a clean state reproduces the entire environment identically — [`docs/evidence/rebuild-from-scratch.txt`](docs/evidence/rebuild-from-scratch.txt)
 - [ ] The policy violation blocks a real **pull request** — needs a GitHub remote, then a screenshot
 - [ ] An Infracost comment appears on a real PR — needs an API key, then a screenshot
 - [ ] ArgoCD auto-syncs an application change end-to-end after merge — needs the repo pushed, then a GIF

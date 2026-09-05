@@ -25,6 +25,13 @@ jobs:
       # block. Service containers start before the workflow can configure
       # them and cannot be given the Docker socket, which LocalStack needs;
       # starting it here also makes its logs readable when something fails.
+      #
+      # Pinned to 4.9 deliberately. From the 2026 releases onward the image
+      # refuses to start without a LOCALSTACK_AUTH_TOKEN -- it exits 55 with
+      # "License activation failed" -- which would make CI depend on a
+      # personal credential and stop anyone forking this repo from running
+      # it. 4.9 is the newest tag that still starts unlicensed, and it
+      # covers every service this project uses.
       - name: Start LocalStack
         run: |
           docker run -d --name localstack \
@@ -32,7 +39,7 @@ jobs:
             -e SERVICES=s3,dynamodb,iam,ec2,sts \
             -e DEBUG=1 \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            localstack/localstack:latest
+            localstack/localstack:4.9
 
       - name: Wait for LocalStack to be ready
         run: |

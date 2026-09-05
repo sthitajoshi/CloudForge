@@ -166,3 +166,29 @@ Every resource uses the real AWS provider. The only differences are the `endpoin
 The `eks` module is written against the genuine AWS schema, `terraform validate`s clean, and is deliberately never applied. It carries KMS-encrypted secrets, all five control-plane log types, private-only endpoint access, and the three AWS-managed policies a node group actually requires.
 
 **The honest framing:** this is a cost decision made during a job search, not a shortcut. The HCL is real, the policy gate and cost estimation work identically against a plan file regardless of target, and the Kubernetes work is the same `kubectl`, Helm and ArgoCD as any managed cluster. What it does not prove is that the EKS module applies cleanly — which is exactly why it is labelled as unapplied rather than quietly presented as running.
+
+---
+
+## Version pinning forced by licensing
+
+### LocalStack is pinned to 4.9
+
+From the 2026 releases onward, `localstack/localstack:latest` refuses to start without a `LOCALSTACK_AUTH_TOKEN`. It exits with code 55 and `License activation failed`, taking the whole CI job with it — the failure looks like a networking or readiness problem until you read the container logs.
+
+Tags were tested downward from `latest`: 4.9, 4.5 and 4.0 all start unlicensed and report `edition: community`; the 2026 builds do not. **4.9 is therefore the newest usable tag**, and it exposes S3, DynamoDB, IAM, EC2 and STS — everything this project touches.
+
+The alternative was storing a personal LocalStack token as a repository secret. That was rejected because it makes CI depend on one person's credential and prevents anyone forking the repo from running the pipeline. Pinning keeps the project genuinely credential-free.
+
+### The Go builder is pinned above the CVE line, not to a fixed patch
+
+The first real CI run failed the Trivy gate: `golang:1.22-alpine` pins the standard library at 1.22.12, which carries 21 HIGH and 1 CRITICAL advisories — TLS certificate validation during session resumption, x509 and HTTP/2 denial of service, and others.
+
+The builder now tracks `golang:1.26-alpine`, currently 1.26.8, above the highest required fix of 1.26.6. Tracking the minor rather than pinning an exact patch means routine rebuilds pick up stdlib security fixes without a code change.
+
+This is worth stating plainly: the vulnerability gate was not decorative. It caught a real supply-chain problem on its first genuine run and refused to publish the image.
+
+### Container registries reject uppercase repository names
+
+The GHCR push failed with `repository name (sthitajoshi/CloudForge) must be lowercase`. `github.repository` preserves the owner and repository casing exactly as created, and the OCI distribution spec requires lowercase.
+
+The workflow now lowercases it explicitly rather than relying on the repository having been named in lowercase — the same class of bug as the ArgoCD `repoURL` mismatch, and worth fixing structurally in both places.
