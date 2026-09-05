@@ -41,26 +41,54 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             localstack/localstack:4.9
 
+      # Every service must report a ready state, not merely appear in the
+      # response. Grepping for the service name matches the key even when
+      # its value is "disabled", so Terraform would start applying against
+      # a half-initialised LocalStack -- calls then run slowly enough to
+      # time out client-side and get retried.
+      #
+      # Both ready states are accepted: LocalStack reports "available"
+      # before a service has been used and "running" afterwards.
       - name: Wait for LocalStack to be ready
         run: |
+          ready='[.services["s3","dynamodb","iam","ec2","sts"]]
+                 | all(. == "available" or . == "running")'
           for i in $(seq 1 60); do
-            if curl -sf http://localhost:4566/_localstack/health | grep -q '"s3"'; then
-              echo "LocalStack ready after ${i} attempts"
-              curl -s http://localhost:4566/_localstack/health
+            if curl -sf http://localhost:4566/_localstack/health 2>/dev/null \
+                 | jq -e "$ready" >/dev/null 2>&1; then
+              echo "LocalStack ready after $((i * 5))s"
+              curl -s http://localhost:4566/_localstack/health \
+                | jq '.services | with_entries(select(.value != "disabled"))'
               exit 0
             fi
             sleep 5
           done
           echo "::error::LocalStack did not become ready in time"
+          curl -s http://localhost:4566/_localstack/health | jq . || true
           docker logs localstack --tail 50
           exit 1
 
       # The state backend cannot store its own state, so it is created
       # first with local state.
+      #
+      # -parallelism=1 because LocalStack on a shared runner is slow enough
+      # that concurrent calls time out client-side; the AWS SDK then retries
+      # a CreateTable that had already succeeded server-side and the apply
+      # dies on ResourceInUseException. Serialising avoids the race, and the
+      # fallback below recovers if one slips through anyway.
       - name: Bootstrap the state backend
         run: |
-          terraform -chdir=terraform/bootstrap init -input=false
-          terraform -chdir=terraform/bootstrap apply -auto-approve -input=false
+          cd terraform/bootstrap
+          terraform init -input=false
+
+          if terraform apply -auto-approve -input=false -parallelism=1; then
+            exit 0
+          fi
+
+          echo "::warning::Bootstrap apply failed; adopting any resources that were created but not recorded, then retrying."
+          terraform import -input=false aws_s3_bucket.tf_state cloudforge-tf-state || true
+          terraform import -input=false aws_dynamodb_table.tf_lock cloudforge-tf-lock || true
+          terraform apply -auto-approve -input=false -parallelism=1
 
       - name: Apply every environment
         run: |
@@ -68,7 +96,7 @@ jobs:
             echo "::group::apply $env"
             terraform -chdir=terraform/envs/$env init -input=false
             terraform -chdir=terraform/envs/$env apply \
-              -auto-approve -input=false -var-file=$env.tfvars
+              -auto-approve -input=false -parallelism=2 -var-file=$env.tfvars
             echo "::endgroup::"
           done
 
